@@ -17,6 +17,8 @@ import {
   FORMAT_OPTIONS,
 } from '@/lib/image';
 import { Field, Note, NumberField, Segmented, Select, Slider } from '@/components/ui';
+import GeminiKeyField from '@/components/GeminiKeyField';
+import { geminiEnhanceRaw, getSavedGeminiKey } from '@/lib/gemini';
 
 type Engine = 'browser' | 'esrgan' | 'ai';
 
@@ -41,6 +43,8 @@ export default function UpscalePage() {
   const [customScale, setCustomScale] = useState(3);
   const [format, setFormat] = useState<OutFormat>('original');
   const [quality, setQuality] = useState(95);
+  // Bumped whenever the BYOK key changes so the queue re-processes.
+  const [keyVersion, setKeyVersion] = useState(0);
 
   const scale = choice === 'custom' ? customScale : Number(choice);
 
@@ -60,8 +64,8 @@ export default function UpscalePage() {
           const upscaler = await getUpscaler(scale > 2 ? 4 : 2);
           const src: string = await upscaler.upscale(img, {
             output: 'src',
-            patchSize: 64,
-            padding: 2, // patch processing keeps the UI responsive on large images
+            patchSize: 128, // larger patches = noticeably faster inference on WebGL
+            padding: 4,
             progress: (p: number) => report(0.05 + 0.7 * Math.min(1, p)),
           });
           source = await loadImage(src);
@@ -70,16 +74,24 @@ export default function UpscalePage() {
         }
       } else if (engine === 'ai') {
         // Cloud path: Google Gemini enhances detail; exact sizing still happens locally below.
+        // BYOK first: if the visitor saved their own key, call Google directly from the browser.
         report(0.05);
-        const fd = new FormData();
-        fd.append('image', item.file);
-        const res = await fetch('/api/ai-upscale', { method: 'POST', body: fd });
-        report(0.7);
-        if (!res.ok) {
-          const j: any = await res.json().catch(() => null);
-          throw new Error(j?.error || 'AI enhancement failed. Please try again.');
+        let enhanced: Blob;
+        const ownKey = getSavedGeminiKey();
+        if (ownKey) {
+          enhanced = await geminiEnhanceRaw(item.file, ownKey, (p) => report(0.05 + 0.65 * p));
+        } else {
+          const fd = new FormData();
+          fd.append('image', item.file);
+          const res = await fetch('/api/ai-upscale', { method: 'POST', body: fd });
+          report(0.7);
+          if (!res.ok) {
+            const j: any = await res.json().catch(() => null);
+            throw new Error(j?.error || 'Gemini failed. Save your own key below (BYOK) or try again.');
+          }
+          enhanced = await res.blob();
         }
-        tempUrl = URL.createObjectURL(await res.blob());
+        tempUrl = URL.createObjectURL(enhanced);
         try {
           source = await loadImage(tempUrl);
         } catch {
@@ -111,7 +123,7 @@ export default function UpscalePage() {
         if (tempUrl) URL.revokeObjectURL(tempUrl);
       }
     },
-    [engine, scale, format, quality]
+    [engine, scale, format, quality, keyVersion]
   );
 
   const procRef = useRef(processor);
@@ -174,6 +186,7 @@ export default function UpscalePage() {
               ariaLabel="Upscale engine"
             />
           </Field>
+          {engine === 'ai' && <GeminiKeyField onChanged={() => setKeyVersion((v) => v + 1)} />}
           <Field label="Scale">
             <Segmented
               value={choice}
@@ -212,7 +225,8 @@ export default function UpscalePage() {
           <>
             <Note>
               ESRGAN is a real AI super-resolution model running entirely on your device with TensorFlow.js — it sharpens
-              edges and textures. First run downloads the model (~2 MB); afterwards it works offline.
+              edges and textures. First image is slowest (one-time model download + GPU warmup); everything after is much
+              faster.
             </Note>
             <Note tone="amber">
               AI upscaling uses more memory than Fast mode. On very large images, try Fast mode or upscale in two steps.

@@ -21,7 +21,14 @@ type BgMode = 'transparent' | 'color' | 'image';
 type BgFormat = 'png' | 'jpeg' | 'webp';
 
 interface BgRemovalModule {
-  removeBackground: (source: Blob, config?: { progress?: (key: string, current: number, total: number) => void }) => Promise<Blob>;
+  removeBackground: (
+    source: Blob,
+    config?: {
+      model?: string;
+      device?: 'cpu' | 'gpu';
+      progress?: (key: string, current: number, total: number) => void;
+    }
+  ) => Promise<Blob>;
 }
 
 // Loaded on demand from jsDelivr — keeps the app bundle small and lets the
@@ -74,11 +81,21 @@ export default function RemoveBackgroundPage() {
         report(0.02);
         try {
           const mod = await loadBgRemoval();
-          cut = await mod.removeBackground(item.file, {
-            progress: (_key: string, current: number, total: number) => {
-              if (total > 0) report(0.02 + 0.6 * Math.min(1, current / total));
-            },
-          });
+          const run = (device: 'gpu' | 'cpu') =>
+            mod.removeBackground(item.file, {
+              // Quantized model: much smaller download + faster inference, near-identical quality.
+              model: 'isnet_quint8',
+              device,
+              progress: (_key: string, current: number, total: number) => {
+                if (total > 0) report(0.02 + 0.6 * Math.min(1, current / total));
+              },
+            });
+          try {
+            // WebGPU is dramatically faster when the browser supports it.
+            cut = await run('gpu');
+          } catch {
+            cut = await run('cpu');
+          }
         } catch {
           throw new Error(
             'The background remover could not be loaded or this image failed. Check your connection and try again.'
@@ -252,8 +269,8 @@ export default function RemoveBackgroundPage() {
       notes={
         <>
           <Note>
-            On first use, the AI library and model are downloaded from a CDN and cached by your browser — afterwards it
-            works fully offline. <strong>Your images never leave your device.</strong>
+            First use downloads a compact quantized AI model (≈10 MB) that caches in your browser and runs offline
+            afterwards — WebGPU acceleration kicks in when available. <strong>Your images never leave your device.</strong>
           </Note>
           <Note>Changing the color or format afterwards is instant: the AI cutout is reused, not recomputed.</Note>
         </>

@@ -55,3 +55,56 @@ export const TOOLS: ToolInfo[] = [
 ];
 
 export const toolHref = (slug: string) => `/tools/${slug}`;
+
+/** Phase 2 additions — same privacy rules, same workspace system. */
+export const TOOLS_PHASE2: ToolInfo[] = [
+  {
+    slug: 'watermark',
+    name: 'Watermark Tool',
+    description: 'Text or logo watermarks on single images or big batches — position, size, opacity, rotation.',
+    icon: 'image',
+    batch: true,
+  },
+  {
+    slug: 'rotate',
+    name: 'Rotate & Flip',
+    description: 'Rotate 90° or any custom angle, flip horizontally or vertically, with corner fill options.',
+    icon: 'refresh',
+    batch: true,
+  },
+  {
+    slug: 'editor',
+    name: 'Basic Editor',
+    description: 'Brightness, contrast, saturation, sharpness, blur, grayscale, sepia, and opacity in real time.',
+    icon: 'image',
+    batch: true,
+  },
+  {
+    slug: 'crop',
+    name: 'Crop Tool',
+    description: 'Free-form or fixed-ratio cropping with drag-to-resize, zoom, and rule-of-thirds guides.',
+    icon: 'crop',
+    batch: false,
+  },
+  {
+    slug: 'transparency',
+    name: 'Transparency Tools',
+    description: 'Opacity control, color-to-transparent, white-background removal, and a manual eraser brush.',
+    icon: 'bg',
+    batch: true,
+  },
+  {
+    slug: 'metadata',
+    name: 'Metadata Tool',
+    description: 'Inspect EXIF camera data and GPS, then download a cleaned, metadata-free copy.',
+    icon: 'info',
+    batch: false,
+  },
+  {
+    slug: 'colors',
+    name: 'Color Tools',
+    description: 'Click to pick any pixel\u2019s HEX/RGB and generate a ready-to-copy color palette from any image.',
+    icon: 'drop',
+    batch: false,
+  },
+];

@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { TOOLS, toolHref } from '@/lib/tools';
+import { TOOLS, TOOLS_PHASE2, toolHref } from '@/lib/tools';
 import ToolCard from '@/components/ToolCard';
 import PrivacyNotice from '@/components/PrivacyNotice';
 import { Icon } from '@/components/Icon';
@@ -73,6 +73,26 @@ export default function HomePage() {
         />
         <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {TOOLS.map((t) => (
+            <ToolCard
+              key={t.slug}
+              icon={t.icon}
+              name={t.name}
+              description={t.description}
+              href={toolHref(t.slug)}
+              badge={t.batch ? 'Batch + ZIP' : undefined}
+            />
+          ))}
+        </div>
+      </section>
+
+      {/* ---------- Phase 2 tools ---------- */}
+      <section className="wrap pb-4">
+        <div className="mx-auto max-w-2xl text-center">
+          <p className="text-sm font-semibold uppercase tracking-wide text-indigo-600">New — Phase 2</p>
+          <h2 className="mt-2 text-2xl font-bold tracking-tight text-gray-900">More Tools, Same Privacy</h2>
+        </div>
+        <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {TOOLS_PHASE2.map((t) => (
             <ToolCard
               key={t.slug}
               icon={t.icon}

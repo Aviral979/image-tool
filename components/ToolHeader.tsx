@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { Icon, type IconName } from './Icon';
 import { Chip } from './ui';
 
@@ -11,6 +12,14 @@ export default function ToolHeader({
   description: string;
 }) {
   return (
+    <>
+      <Link
+        href="/#tools"
+        className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 transition hover:text-indigo-600"
+      >
+        <Icon name="arrowRight" className="h-4 w-4 rotate-180" />
+        All tools
+      </Link>
     <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
       <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-500 text-white">
         <Icon name={icon} className="h-6 w-6" />
@@ -26,5 +35,6 @@ export default function ToolHeader({
         </div>
       </div>
     </div>
+    </>
   );
 }

@@ -29,6 +29,7 @@ export default function ToolWorkspace({
   notes,
   checkerResult = false,
   privacySubline,
+  afterQueue,
 }: {
   title: string;
   description: string;
@@ -41,6 +42,7 @@ export default function ToolWorkspace({
   notes?: ReactNode;
   checkerResult?: boolean;
   privacySubline?: string;
+  afterQueue?: ReactNode;
 }) {
   const { items, selected, processing } = queue;
 
@@ -98,6 +100,8 @@ export default function ToolWorkspace({
               onClear={queue.clear}
               onDownload={queue.downloadItem}
             />
+
+            {afterQueue}
 
             {selected && (
               <Card className="p-4">
