@@ -50,7 +50,7 @@ export default function HomePage() {
             Edit Your Images. Fast, Simple, and <span className="bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">Private</span>.
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-lg text-gray-600">
-            Resize, convert, compress, upscale, remove backgrounds, convert images to vectors, and more — all in one place.
+            Turn images into illustrations, remove backgrounds, upscale, resize, convert, compress, and more — all in one place.
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <Link href="#tools" className={btnClass('primary', 'lg')}>
@@ -69,7 +69,7 @@ export default function HomePage() {
         <SectionHead
           eyebrow="All tools"
           title="Popular Tools"
-          sub="Six powerful image utilities — free forever, no account needed, all running on your device."
+          sub="Seven powerful image utilities — free forever, no account needed, all running on your device."
         />
         <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {TOOLS.map((t) => (

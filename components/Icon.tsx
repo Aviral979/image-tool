@@ -21,7 +21,8 @@ export type IconName =
   | 'arrowRight'
   | 'refresh'
   | 'crop'
-  | 'drop';
+  | 'drop'
+  | 'illustration';
 
 const PATHS: Record<IconName, ReactNode> = {
   upload: (
@@ -133,6 +134,15 @@ const PATHS: Record<IconName, ReactNode> = {
     </>
   ),
   drop: <path d="M12 3s6.5 6.8 6.5 11a6.5 6.5 0 0 1-13 0C5.5 9.8 12 3 12 3z" />,
+  illustration: (
+    <>
+      <path d="M12 2C6.48 2 2 6.48 2 12c0 4.42 3.58 8 8 8 1.1 0 2-.9 2-2 0-.55-.22-1.05-.59-1.41-.36-.36-.59-.86-.59-1.41 0-1.1.9-2 2-2h1.66c3.87 0 7-3.13 7-7 0-4.42-4.48-8-9.48-8z" />
+      <circle cx="6.5" cy="11.5" r="1.5" />
+      <circle cx="9.5" cy="7.5" r="1.5" />
+      <circle cx="14.5" cy="7.5" r="1.5" />
+      <circle cx="17.5" cy="11.5" r="1.5" />
+    </>
+  ),
 };
 
 export function Icon({

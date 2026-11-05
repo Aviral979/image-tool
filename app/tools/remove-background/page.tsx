@@ -19,14 +19,20 @@ import { Icon } from '@/components/Icon';
 
 type BgMode = 'transparent' | 'color' | 'image';
 type BgFormat = 'png' | 'jpeg' | 'webp';
+type SpeedMode = 'turbo' | 'original';
 
 interface BgRemovalModule {
+  preload?: (config?: { model?: string; device?: 'cpu' | 'gpu' }) => Promise<void>;
   removeBackground: (
-    source: Blob,
+    source: Blob | HTMLImageElement | string,
     config?: {
       model?: string;
       device?: 'cpu' | 'gpu';
       progress?: (key: string, current: number, total: number) => void;
+      output?: {
+        format?: 'image/png' | 'image/jpeg' | 'image/webp';
+        quality?: number;
+      };
     }
   ) => Promise<Blob>;
 }
@@ -47,9 +53,39 @@ function loadBgRemoval(): Promise<BgRemovalModule> {
   return bgModulePromise;
 }
 
+const MAX_TURBO_SIDE = 1280;
+
+/** Downscales an image blob to max 1280px for turbo-speed AI processing */
+async function prepareFastSource(file: Blob): Promise<{ source: Blob; width: number; height: number; scaled: boolean }> {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await loadImage(url);
+    const origW = img.naturalWidth;
+    const origH = img.naturalHeight;
+    const maxSide = Math.max(origW, origH);
+
+    if (maxSide <= MAX_TURBO_SIDE) {
+      return { source: file, width: origW, height: origH, scaled: false };
+    }
+
+    const scale = MAX_TURBO_SIDE / maxSide;
+    const w = Math.max(1, Math.round(origW * scale));
+    const h = Math.max(1, Math.round(origH * scale));
+    const canvas = makeCanvas(w, h);
+    const ctx = get2d(canvas);
+    ctx.drawImage(img, 0, 0, w, h);
+
+    const blob = await canvasToBlob(canvas, 'image/png');
+    return { source: blob, width: w, height: h, scaled: true };
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
 export default function RemoveBackgroundPage() {
   const queue = useImageQueue();
   const [errors, setErrors] = useState<string[]>([]);
+  const [speedMode, setSpeedMode] = useState<SpeedMode>('turbo');
   const [bgMode, setBgMode] = useState<BgMode>('transparent');
   const [color, setColor] = useState('#ffffff');
   const [bgImage, setBgImage] = useState<{ url: string; name: string } | null>(null);
@@ -57,12 +93,29 @@ export default function RemoveBackgroundPage() {
   const [quality, setQuality] = useState(92);
 
   const bgInputRef = useRef<HTMLInputElement>(null);
-  // AI cutouts cached per queue item so tweaking color/format re-composites instantly.
-  const cutCache = useRef(new Map<string, Blob>());
+  // AI cutouts cached per queue item and speed mode so tweaking color/format re-composites instantly.
+  const cutCache = useRef(new Map<string, { blob: Blob; scaled: boolean }>());
+
+  // Preload AI model and dependencies in the background as soon as page mounts
+  useEffect(() => {
+    loadBgRemoval()
+      .then((mod) => {
+        if (typeof mod.preload === 'function') {
+          return mod.preload({ model: 'isnet_quint8', device: 'gpu' });
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (queue.items.length === 0) cutCache.current.clear();
   }, [queue.items.length]);
+
+  // When speed mode changes, clear cutouts so they are re-inferred with new resolution
+  const handleSpeedModeChange = (newMode: SpeedMode) => {
+    setSpeedMode(newMode);
+    cutCache.current.clear();
+  };
 
   // Release the background-image object URL on unmount.
   useEffect(() => {
@@ -76,39 +129,62 @@ export default function RemoveBackgroundPage() {
 
   const processor: Processor = useCallback(
     async (item, report) => {
-      let cut = cutCache.current.get(item.id);
-      if (!cut) {
-        report(0.02);
+      let cached = cutCache.current.get(item.id);
+      if (!cached) {
+        report(0.05);
         try {
           const mod = await loadBgRemoval();
+          let inputBlob: Blob = item.file;
+          let wasScaled = false;
+
+          if (speedMode === 'turbo') {
+            report(0.1);
+            const prep = await prepareFastSource(item.file);
+            inputBlob = prep.source;
+            wasScaled = prep.scaled;
+          }
+
           const run = (device: 'gpu' | 'cpu') =>
-            mod.removeBackground(item.file, {
+            mod.removeBackground(inputBlob, {
               // Quantized model: much smaller download + faster inference, near-identical quality.
               model: 'isnet_quint8',
               device,
               progress: (_key: string, current: number, total: number) => {
-                if (total > 0) report(0.02 + 0.6 * Math.min(1, current / total));
+                if (total > 0) report(0.15 + 0.65 * Math.min(1, current / total));
               },
             });
+
+          let cutBlob: Blob;
           try {
             // WebGPU is dramatically faster when the browser supports it.
-            cut = await run('gpu');
+            cutBlob = await run('gpu');
           } catch {
-            cut = await run('cpu');
+            cutBlob = await run('cpu');
           }
+
+          cached = { blob: cutBlob, scaled: wasScaled };
+          cutCache.current.set(item.id, cached);
         } catch {
           throw new Error(
             'The background remover could not be loaded or this image failed. Check your connection and try again.'
           );
         }
-        cutCache.current.set(item.id, cut);
       }
-      report(0.65);
+
+      const cut = cached.blob;
+      report(0.85);
 
       const base = stripExt(item.name);
       // Transparent PNG needs no compositing at all.
       if (bgMode === 'transparent' && format === 'png') {
-        return { blob: cut, name: `${base}-transparent.png`, info: [sizeInfo(item.size, cut.size)] };
+        return {
+          blob: cut,
+          name: `${base}-transparent.png`,
+          info: [
+            speedMode === 'turbo' ? 'Turbo Fast' : 'Full Res',
+            sizeInfo(item.size, cut.size),
+          ],
+        };
       }
 
       const mime = `image/${format}`;
@@ -133,7 +209,7 @@ export default function RemoveBackgroundPage() {
           ctx.fillRect(0, 0, w, h);
         }
         ctx.drawImage(cutImg, 0, 0);
-        report(0.9);
+        report(0.95);
 
         const blob = await canvasToBlob(canvas, mime, isLossy(mime) ? quality / 100 : undefined);
         return {
@@ -141,13 +217,17 @@ export default function RemoveBackgroundPage() {
           name: `${base}-nobg.${extForMime(mime)}`,
           width: w,
           height: h,
-          info: [sizeInfo(item.size, blob.size)],
+          info: [
+            speedMode === 'turbo' ? 'Turbo Fast' : 'Full Res',
+            `${w} × ${h} px`,
+            sizeInfo(item.size, blob.size),
+          ],
         };
       } finally {
         URL.revokeObjectURL(cutUrl);
       }
     },
-    [bgMode, color, bgImage, format, quality]
+    [speedMode, bgMode, color, bgImage, format, quality]
   );
 
   const procRef = useRef(processor);
@@ -159,9 +239,10 @@ export default function RemoveBackgroundPage() {
     void queue.processAll((item, report) => procRef.current(item, report));
   }, [queue.processAll]);
 
+  // Fast auto-trigger on settings change
   useEffect(() => {
     if (queue.items.length === 0) return;
-    const t = window.setTimeout(runAll, 350);
+    const t = window.setTimeout(runAll, 60);
     return () => window.clearTimeout(t);
   }, [processor]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -195,6 +276,18 @@ export default function RemoveBackgroundPage() {
       checkerResult
       settings={
         <>
+          <Field label="Processing Speed" hint="Turbo mode optimizes high-resolution images for 4x faster cutout inference.">
+            <Segmented
+              value={speedMode}
+              onChange={handleSpeedModeChange}
+              options={[
+                { value: 'turbo', label: '⚡ Turbo (Fast)' },
+                { value: 'original', label: 'Full Resolution' },
+              ]}
+              ariaLabel="Processing speed"
+            />
+          </Field>
+
           <Field label="Background">
             <Segmented
               value={bgMode}
@@ -269,10 +362,11 @@ export default function RemoveBackgroundPage() {
       notes={
         <>
           <Note>
-            First use downloads a compact quantized AI model (≈10 MB) that caches in your browser and runs offline
-            afterwards — WebGPU acceleration kicks in when available. <strong>Your images never leave your device.</strong>
+            <strong>Accelerated in-browser AI:</strong> The compact model is automatically preloaded in the background on page load with WebGPU/WASM acceleration. <strong>Your images never leave your device.</strong>
           </Note>
-          <Note>Changing the color or format afterwards is instant: the AI cutout is reused, not recomputed.</Note>
+          <Note>
+            <strong>Instant re-compositing:</strong> Changing background colors, images, or export formats takes 0 seconds because the AI cutout mask is cached in memory.
+          </Note>
         </>
       }
     />

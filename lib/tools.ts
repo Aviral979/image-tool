@@ -11,6 +11,20 @@ export interface ToolInfo {
 
 export const TOOLS: ToolInfo[] = [
   {
+    slug: 'illustration',
+    name: 'Image to Illustration',
+    description: 'Transform photos and images into flat art, comic books, anime, or pencil sketches.',
+    icon: 'illustration',
+    batch: true,
+  },
+  {
+    slug: 'remove-background',
+    name: 'Background Remover',
+    description: 'Erase backgrounds with an in-browser AI model. Transparent PNG, solid color, or a custom backdrop.',
+    icon: 'bg',
+    batch: true,
+  },
+  {
     slug: 'vectorize',
     name: 'Image to Vector',
     description: 'Trace logos, icons, and illustrations into clean, scalable SVG vectors.',
@@ -22,13 +36,6 @@ export const TOOLS: ToolInfo[] = [
     name: 'Image Upscaler',
     description: 'Enlarge images 2x, 4x, or more with high-quality resampling — right in your browser.',
     icon: 'upscale',
-    batch: true,
-  },
-  {
-    slug: 'remove-background',
-    name: 'Background Remover',
-    description: 'Erase backgrounds with an in-browser AI model. Transparent PNG, solid color, or a custom backdrop.',
-    icon: 'bg',
     batch: true,
   },
   {
@@ -103,7 +110,7 @@ export const TOOLS_PHASE2: ToolInfo[] = [
   {
     slug: 'colors',
     name: 'Color Tools',
-    description: 'Click to pick any pixel\u2019s HEX/RGB and generate a ready-to-copy color palette from any image.',
+    description: 'Click to pick any pixel’s HEX/RGB and generate a ready-to-copy color palette from any image.',
     icon: 'drop',
     batch: false,
   },
