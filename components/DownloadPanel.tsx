@@ -23,17 +23,43 @@ export default function DownloadPanel({
   const singleName = done.length === 1 ? done[0].result!.name : '';
   const [name, setName] = useState(singleName);
   const [zipping, setZipping] = useState(false);
+  const [downloaded, setDownloaded] = useState(false);
+  const [dlError, setDlError] = useState<string | null>(null);
 
-  useEffect(() => setName(singleName), [singleName]);
+  // When a valid single image finishes processing, update the default filename
+  // without wiping any active user edits if singleName is momentarily empty.
+  useEffect(() => {
+    if (singleName) {
+      setName((prev) => (prev && prev !== singleName ? prev : singleName));
+    }
+  }, [singleName]);
 
   if (!items.length) return null;
 
   const totalBytes = done.reduce((sum, i) => sum + (i.result?.size ?? 0), 0);
 
+  const handleDownloadSingle = () => {
+    if (!done.length) return;
+    setDlError(null);
+    try {
+      const targetName = (name || singleName).trim();
+      onDownloadItem(done[0].id, targetName);
+      setDownloaded(true);
+      setTimeout(() => setDownloaded(false), 2500);
+    } catch (err) {
+      setDlError(err instanceof Error ? err.message : 'Download failed. Please try again.');
+    }
+  };
+
   const handleZip = async () => {
+    setDlError(null);
     setZipping(true);
     try {
       await onDownloadAll();
+      setDownloaded(true);
+      setTimeout(() => setDownloaded(false), 2500);
+    } catch (err) {
+      setDlError(err instanceof Error ? err.message : 'ZIP creation failed. Please try again.');
     } finally {
       setZipping(false);
     }
@@ -48,6 +74,12 @@ export default function DownloadPanel({
           {totalBytes > 0 && ` · ${formatBytes(totalBytes)}`}
         </p>
       </div>
+
+      {dlError && (
+        <p className="mt-2 text-xs font-medium text-red-600">
+          {dlError}
+        </p>
+      )}
 
       {done.length === 0 && (
         <p className="mt-3 flex items-center gap-2 text-sm text-gray-500">
@@ -75,20 +107,41 @@ export default function DownloadPanel({
               className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
             />
           </div>
-          <Button className="w-full" onClick={() => onDownloadItem(done[0].id, name)}>
-            <Icon name="download" className="h-4 w-4" />
-            Download {done[0].result ? `(${formatBytes(done[0].result.size)})` : ''}
+          <Button
+            className="w-full transition-all"
+            onClick={handleDownloadSingle}
+            disabled={processing}
+          >
+            <Icon name={downloaded ? 'check' : 'download'} className="h-4 w-4" />
+            {downloaded
+              ? 'Downloaded!'
+              : `Download ${done[0].result ? `(${formatBytes(done[0].result.size)})` : ''}`}
           </Button>
         </div>
       )}
 
       {done.length > 1 && (
         <div className="mt-3 space-y-2">
-          <Button className="w-full" size="lg" onClick={handleZip} disabled={zipping}>
-            {zipping ? <Spinner /> : <Icon name="zip" className="h-4 w-4" />}
-            {zipping ? 'Preparing ZIP…' : `Download All as ZIP (${done.length})`}
+          <Button
+            className="w-full transition-all"
+            size="lg"
+            onClick={handleZip}
+            disabled={zipping}
+          >
+            {zipping ? (
+              <Spinner />
+            ) : (
+              <Icon name={downloaded ? 'check' : 'zip'} className="h-4 w-4" />
+            )}
+            {zipping
+              ? 'Preparing ZIP…'
+              : downloaded
+              ? 'ZIP Downloaded!'
+              : `Download All as ZIP (${done.length})`}
           </Button>
-          <p className="text-center text-xs text-gray-400">Or download files individually from the queue above.</p>
+          <p className="text-center text-xs text-gray-400">
+            Or download files individually from the queue above.
+          </p>
         </div>
       )}
 

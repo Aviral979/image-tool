@@ -1,5 +1,5 @@
 import JSZip from 'jszip';
-import { downloadBlob } from './image';
+import { downloadBlob, sanitizeFilename } from './image';
 
 export interface ZipEntry {
   name: string;
@@ -7,7 +7,8 @@ export interface ZipEntry {
 }
 
 /** Avoid duplicate filenames inside the archive. */
-function uniqueName(used: Set<string>, name: string): string {
+function uniqueName(used: Set<string>, rawName: string): string {
+  const name = sanitizeFilename(rawName, 'image');
   if (!used.has(name)) return name;
   const dot = name.lastIndexOf('.');
   const base = dot > 0 ? name.slice(0, dot) : name;
@@ -33,5 +34,6 @@ export async function downloadZip(entries: ZipEntry[], zipName: string): Promise
   }
   // Images barely re-compress — STORE keeps ZIP creation fast on large batches.
   const blob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
-  downloadBlob(blob, zipName.endsWith('.zip') ? zipName : `${zipName}.zip`);
+  const safeZipName = sanitizeFilename(zipName, 'imagetool-studio-files.zip');
+  downloadBlob(blob, safeZipName.endsWith('.zip') ? safeZipName : `${safeZipName}.zip`);
 }

@@ -22,6 +22,7 @@ const DEFAULTS = { brightness: 100, contrast: 100, saturation: 100, sharpness: 0
 
 /** 3×3 sharpen convolution, amount 0..1. Edge pixels copied through. */
 function applySharpen(ctx: CanvasRenderingContext2D, w: number, h: number, amount: number) {
+  if (w < 3 || h < 3) return;
   const src = ctx.getImageData(0, 0, w, h);
   const out = ctx.createImageData(w, h);
   const s = src.data;
@@ -97,7 +98,17 @@ export default function EditorPage() {
       if (sharpness > 0) applySharpen(ctx, w, h, sharpness / 100);
 
       const mime = resolveMime(format, item.type);
-      const blob = await canvasToBlob(canvas, mime, isLossy(mime) ? quality / 100 : undefined);
+      let exportCanvas = canvas;
+      if (opacity < 100 && (mime === 'image/jpeg' || mime === 'image/jpg')) {
+        const bgCanvas = makeCanvas(w, h);
+        const bgCtx = get2d(bgCanvas);
+        bgCtx.fillStyle = '#ffffff';
+        bgCtx.fillRect(0, 0, w, h);
+        bgCtx.drawImage(canvas, 0, 0);
+        exportCanvas = bgCanvas;
+      }
+
+      const blob = await canvasToBlob(exportCanvas, mime, isLossy(mime) ? quality / 100 : undefined);
       return {
         blob,
         name: `${stripExt(item.name)}-edited.${extForMime(mime)}`,
@@ -120,7 +131,7 @@ export default function EditorPage() {
 
   useEffect(() => {
     if (queue.items.length === 0) return;
-    const t = window.setTimeout(runAll, 350);
+    const t = window.setTimeout(runAll, 100);
     return () => window.clearTimeout(t);
   }, [processor]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -176,7 +187,7 @@ export default function EditorPage() {
       }
       notes={
         <>
-          <Note>Sliders re-render automatically (~350 ms debounce) — the before/after preview updates in real time.</Note>
+          <Note>Sliders re-render automatically — the before/after preview updates in real time.</Note>
           <Note tone="amber">Transparent areas may be needed for partial opacity: choose PNG or WebP as output to keep them.</Note>
         </>
       }
